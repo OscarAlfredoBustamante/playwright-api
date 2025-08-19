@@ -33,8 +33,26 @@ app.post('/entrenar', async (req, res) => {
     }
 });
 
-const PORT = process.env.PORT || 3000;
-app.listen(PORT, () => {
-    console.log(`Playwright API escuchando en puerto ${PORT}`);
-});
+// Función para iniciar el servidor en el primer puerto disponible
+function startServer(port = 3000, maxPort = 4000) {
+    const server = app.listen(port, () => {
+        console.log(`Playwright API escuchando en puerto ${port}`);
+    });
 
+    server.on('error', (err) => {
+        if (err.code === 'EADDRINUSE') {
+            console.log(`Puerto ${port} en uso, probando con ${port + 1}...`);
+            if (port + 1 <= maxPort) {
+                setTimeout(() => startServer(port + 1, maxPort), 100);
+            } else {
+                console.error(`Todos los puertos del ${port} al ${maxPort} están ocupados`);
+                process.exit(1);
+            }
+        } else {
+            console.error('Error al iniciar el servidor:', err);
+            process.exit(1);
+        }
+    });
+}
+
+startServer(3000, 4000);
