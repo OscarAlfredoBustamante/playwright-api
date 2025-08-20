@@ -2,7 +2,7 @@ const express = require('express');
 const { llenarFormulario } = require('./scripts/llenarFormulario');
 const { detectarCampos } = require('./scripts/detectarCampos');
 const { entrenar } = require('./scripts/entrenar');
-
+const { ejecutarPlaywright } = require('./scripts/ejecutarPlaywright');
 const app = express();
 app.use(express.json());
 
@@ -32,6 +32,26 @@ app.post('/entrenar', async (req, res) => {
         res.status(500).json({ success: false, error: err.message });
     }
 });
+
+app.post('/ejecutar', async (req, res) => {
+    try {
+        const { url, instrucciones } = req.body;
+        
+        if (!url || !instrucciones) {
+            return res.status(400).json({ 
+                success: false, 
+                error: 'Se requieren url e instrucciones' 
+            });
+        }
+
+        const result = await ejecutarPlaywright(url, instrucciones);
+        res.json({ success: true, result });
+    } catch (err) {
+        res.status(500).json({ success: false, error: err.message });
+    }
+});
+
+
 
 // Función para iniciar el servidor en el primer puerto disponible
 function startServer(port = 3000, maxPort = 4000) {

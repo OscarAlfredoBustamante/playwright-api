@@ -1,17 +1,21 @@
 import { test, expect } from '@playwright/test';
 
 test('test', async ({ page }) => {
-  await page.goto('https://www.ticket-factura.com/');
-  await page.locator('.img.img-2').click();
-  await page.locator('div:nth-child(16) > .blog-entry > .img').click();
-  await page.locator('#EmpresaId').selectOption('3');
-  await page.locator('#Folio').dblclick();
-  await page.locator('#Folio').fill('1234');
-  await page.getByRole('textbox', { name: '__/__/____' }).click();
-  await page.getByRole('textbox', { name: '__/__/____' }).fill('12/12/1212');
-  await page.locator('#Monto').click();
-  await page.locator('#Monto').fill('399');
-  await page.locator('#Monto').press('Tab');
-  await page.locator('#CodigoSeguridad').fill('12344');
-  await page.getByRole('button', { name: 'Buscar' }).click();
+  await page.goto('https://clientes.facturassubway.mx/');
+  await page.locator('#number_store').click();
+  await page.locator('#number_store').fill('121212');
+  await page.locator('#num_ticket').click();
+  await page.locator('#num_ticket').fill('1/121212');
+  await page.locator('#total_ticket').click();
+  await page.locator('#total_ticket').fill('121212');
+  await page.locator('#tax_id_receiver').click();
+  await page.locator('#tax_id_receiver').fill('121212');
+  await page.locator('#name_receiver').click();
+  await page.locator('#name_receiver').fill('12121212');
+  await page.locator('#cp_receiver').click();
+  await page.locator('#cp_receiver').fill('121212');
+  await page.locator('#regime_receiver').selectOption('624');
+  await page.locator('#email_receiver').click();
+  await page.locator('#email_receiver').fill('1212@hotmail');
+  await page.getByRole('button', { name: 'Realizar facturación' }).click();
 });
