@@ -13,7 +13,6 @@ const mapeoPredefinido = {
   ciudad: ['ciudad', 'city'],
   estado: ['estado', 'state'],
   pais: ['pais', 'country'],
-  // Agrega más campos según necesites
 };
 
 async function cerrarModales(page) {
@@ -35,100 +34,111 @@ async function cerrarModales(page) {
 
 async function detectarCamposEnPagina(page) {
   try {
-    await page.waitForSelector('input, textarea, select, button', { timeout: 10000 });
+    // Esperar a que cargue el contenido dinámico
+    await page.waitForLoadState('networkidle');
+    await page.waitForTimeout(3000);
+    
+    // Tomar screenshot para ver el estado actual de la página
+    await page.screenshot({ path: 'debug-page-state.png' });
+    console.log('Screenshot tomado: debug-page-state.png');
+
+    // Evaluar directamente en el contexto de la página para encontrar elementos visibles
+    const elementos = await page.evaluate(() => {
+      // Función para verificar si un elemento es visible
+      const esVisible = (el) => {
+        if (!el) return false;
+        const style = window.getComputedStyle(el);
+        const rect = el.getBoundingClientRect();
+        return style.display !== 'none' &&
+               style.visibility !== 'hidden' &&
+               parseFloat(style.opacity) > 0.1 &&
+               rect.width > 0 &&
+               rect.height > 0 &&
+               el.offsetParent !== null;
+      };
+
+      // Buscar todos los elementos de formulario visibles
+      const inputsVisibles = Array.from(document.querySelectorAll('input, textarea, select, button, a'))
+        .filter(el => esVisible(el))
+        .map(el => {
+          const rect = el.getBoundingClientRect();
+          const style = window.getComputedStyle(el);
+          
+          // Obtener texto del elemento
+          let text = '';
+          if (el.tagName.toLowerCase() === 'input') {
+            text = el.value || el.getAttribute('aria-label') || el.placeholder || '';
+          } else {
+            text = el.innerText.trim() || el.textContent.trim() || el.getAttribute('aria-label') || el.title || '';
+          }
+
+          // Determinar el mejor selector
+          let selector = '';
+          if (el.id) {
+            selector = `#${el.id}`;
+          } else if (el.name) {
+            selector = `[name="${el.name}"]`;
+          } else if (el.className && typeof el.className === 'string') {
+            selector = `.${el.className.split(' ')[0]}`;
+          }
+
+          return {
+            tag: el.tagName.toLowerCase(),
+            type: el.getAttribute('type') || '',
+            text: text,
+            id: el.id || '',
+            name: el.getAttribute('name') || '',
+            class: el.className || '',
+            selector: selector,
+            visible: true,
+            position: { x: rect.x, y: rect.y, width: rect.width, height: rect.height }
+          };
+        });
+
+      return inputsVisibles;
+    });
+
+    // Separar campos de botones
+    const campos = elementos.filter(el => 
+      ['input', 'textarea', 'select'].includes(el.tag) && 
+      el.type !== 'submit' && 
+      el.type !== 'button' && 
+      el.type !== 'reset' &&
+      el.type !== 'image'
+    );
+
+    const botones = elementos.filter(el => 
+      el.tag === 'button' || 
+      el.tag === 'a' || 
+      ['submit', 'button', 'reset', 'image'].includes(el.type)
+    );
+
+    console.log(`Elementos interactivos detectados: ${elementos.length}`);
+    console.log(`Campos detectados: ${campos.length}`);
+    console.log(`Botones detectados: ${botones.length}`);
+
+    // Log detallado de todos los elementos encontrados
+    elementos.forEach((el, index) => {
+      console.log(`${index + 1}. ${el.tag}.${el.type} - "${el.text}" - ${el.selector} - pos:(${el.position.x},${el.position.y})`);
+    });
+
+    return { campos, botones };
   } catch (error) {
-    // Si no encuentra elementos, retornar listas vacías
-    console.log('No se encontraron elementos input, textarea, select o button en la página');
+    console.log('Error al detectar elementos:', error.message);
     return { campos: [], botones: [] };
   }
-
-  const campos = await page.evaluate(() => {
-    const elementos = document.querySelectorAll('input, textarea, select');
-
-    return Array.from(elementos).map(el => ({
-      tag: el.tagName.toLowerCase(),
-      type: el.getAttribute('type') || '',
-      name: el.getAttribute('name') || '',
-      id: el.id || '',
-      placeholder: el.getAttribute('placeholder') || '',
-      enabled: !el.disabled,
-      required: el.required,
-      selector: el.id ? `#${el.id}` : el.name ? `[name="${el.name}"]` : el.placeholder ? `[placeholder="${el.placeholder}"]` : ''
-    }));
-  });
-
-  const botones = await page.evaluate(() => {
-    const elementos = document.querySelectorAll('button, input[type="submit"], input[type="button"], input[type="reset"]');
-    return Array.from(elementos).map(el => {
-      const computedStyle = window.getComputedStyle(el);
-      const rect = el.getBoundingClientRect();
-
-      const centerX = rect.left + rect.width / 2;
-      const centerY = rect.top + rect.height / 2;
-      const elementFromPoint = document.elementFromPoint(centerX, centerY);
-      const isObscured = elementFromPoint !== el && !el.contains(elementFromPoint);
-
-      const hasVisibleOverlay = () => {
-        const overlays = document.querySelectorAll('.modal, .overlay, .popup, [role="dialog"]');
-        return Array.from(overlays).some(overlay => {
-          const style = window.getComputedStyle(overlay);
-          return style.display !== 'none' &&
-            style.visibility !== 'hidden' &&
-            parseFloat(style.opacity) > 0.1;
-        });
-      };
-
-      const clickeable = !el.disabled &&
-        el.offsetParent !== null &&
-        computedStyle.display !== 'none' &&
-        computedStyle.visibility !== 'hidden' &&
-        parseFloat(computedStyle.opacity) > 0.1 &&
-        computedStyle.pointerEvents !== 'none' &&
-        rect.width > 0 &&
-        rect.height > 0 &&
-        rect.x + rect.width >= 0 &&
-        rect.y + rect.height >= 0 &&
-        el.getAttribute('aria-disabled') !== 'true' &&
-        el.getAttribute('aria-hidden') !== 'true' &&
-        !el.classList.contains('hidden') &&
-        !el.classList.contains('d-none') &&
-        !el.classList.contains('invisible') &&
-        !isObscured &&
-        !hasVisibleOverlay();
-
-      return {
-        tag: el.tagName.toLowerCase(),
-        type: el.getAttribute('type') || '',
-        text: el.innerText.trim() || el.value || el.getAttribute('aria-label') || '',
-        id: el.id || '',
-        selector: el.id ? `#${el.id}` : el.name ? `[name="${el.name}"]` : el.value ? `[value="${el.value}"]` : '',
-        clickeable: clickeable,
-        // Información adicional para debug
-        disabled: el.disabled,
-        display: computedStyle.display,
-        visibility: computedStyle.visibility,
-        opacity: computedStyle.opacity,
-        pointerEvents: computedStyle.pointerEvents,
-        width: rect.width,
-        height: rect.height,
-        x: rect.x,
-        y: rect.y
-      };
-    });
-  });
-
-  return { campos, botones };
 }
 
 function encontrarCampoParaClave(campos, clave, mapeoPredefinido) {
   const terminos = mapeoPredefinido[clave] || [clave];
   for (const campo of campos) {
-    if (!campo.enabled || !campo.selector) continue;
+    if (!campo.selector) continue;
     for (const termino of terminos) {
       const patron = new RegExp(termino, 'i');
       if ((campo.name && patron.test(campo.name)) ||
         (campo.id && patron.test(campo.id)) ||
-        (campo.placeholder && patron.test(campo.placeholder))) {
+        (campo.class && patron.test(campo.class)) ||
+        (campo.text && patron.test(campo.text))) {
         return campo;
       }
     }
@@ -139,10 +149,16 @@ function encontrarCampoParaClave(campos, clave, mapeoPredefinido) {
 async function llenarCampo(page, campo, valor) {
   try {
     await page.fill(campo.selector, valor);
+    console.log(`Campo ${campo.selector} llenado con: ${valor}`);
   } catch (error) {
-    // Intentar other methods if fill fails
-    await page.focus(campo.selector);
-    await page.type(campo.selector, valor);
+    console.log(`Error al llenar campo ${campo.selector}: ${error.message}`);
+    // Intentar otros métodos si fill falla
+    try {
+      await page.focus(campo.selector);
+      await page.type(campo.selector, valor);
+    } catch (error2) {
+      console.log(`También falló el método alternativo: ${error2.message}`);
+    }
   }
 }
 
@@ -150,35 +166,38 @@ function encontrarBotonAdecuado(botones, preferencias) {
   console.log('=== ANALIZANDO BOTONES ===');
   console.log(`Preferencias: ${preferencias.join(', ')}`);
   
-  const botonesClickeables = botones.filter(boton => boton.clickeable);
-  const botonesNoClickeables = botones.filter(boton => !boton.clickeable);
-
-  console.log(`Botones clickeables encontrados: ${botonesClickeables.length}`);
-  botonesClickeables.forEach(boton => {
-    console.log(`- ${boton.text} (${boton.selector}) - CLICKEABLE`);
+  // Mostrar TODOS los botones detectados
+  console.log(`Total de botones detectados: ${botones.length}`);
+  botones.forEach((boton, index) => {
+    console.log(`${index + 1}. Tag:${boton.tag} Type:${boton.type} Text:"${boton.text}" Selector:${boton.selector}`);
   });
 
-  console.log(`Botones no clickeables encontrados: ${botonesNoClickeables.length}`);
-  botonesNoClickeables.forEach(boton => {
-    console.log(`- ${boton.text} (${boton.selector}) - NO CLICKEABLE`);
-    console.log(`  Razón: disabled=${boton.disabled}, display=${boton.display}, visibility=${boton.visibility}`);
-    console.log(`  opacity=${boton.opacity}, pointerEvents=${boton.pointerEvents}`);
-    console.log(`  width=${boton.width}, height=${boton.height}, x=${boton.x}, y=${boton.y}`);
-  });
-
+  // Buscar por texto preferido
   for (const pref of preferencias) {
-    const boton = botonesClickeables.find(b =>
+    const boton = botones.find(b => 
       b.text && b.text.toLowerCase().includes(pref.toLowerCase())
     );
-    if (boton) return boton;
+    if (boton) {
+      console.log(`Botón encontrado por preferencia "${pref}": ${boton.text}`);
+      return boton;
+    }
   }
   
-  // Si no encuentra, devolver el primer botón clickeable que no sea de cierre
-  const botonesNoCerrar = botonesClickeables.filter(b =>
-    !b.text.toLowerCase().includes('cerrar') &&
-    !b.text.toLowerCase().includes('close')
-  );
-  return botonesNoCerrar[0] || botonesClickeables[0];
+  // Si no encuentra, devolver el primer botón que no sea de imagen (pueden ser problemáticos)
+  const botonesNoImagen = botones.filter(b => b.type !== 'image');
+  if (botonesNoImagen.length > 0) {
+    console.log(`Usando el primer botón no imagen: ${botonesNoImagen[0].text}`);
+    return botonesNoImagen[0];
+  }
+  
+  // Si solo hay botones de imagen, usar el primero
+  if (botones.length > 0) {
+    console.log(`Usando el primer botón disponible: ${botones[0].text}`);
+    return botones[0];
+  }
+  
+  console.log('No se encontró ningún botón');
+  return null;
 }
 
 async function autofillFacturacion(data) {
@@ -220,26 +239,28 @@ async function autofillFacturacion(data) {
       obligatoriosRestantes = obligatoriosRestantes.filter(clave => !camposLlenados.includes(clave));
 
       if (obligatoriosRestantes.length > 0) {
-        const boton = encontrarBotonAdecuado(botones, ['siguiente', 'continuar', 'next', 'avanzar', 'buscar','facturar']);
+        const boton = encontrarBotonAdecuado(botones, [ 'continuar', 'avanzar', 'buscar','facturar']);
         if (boton) {
           console.log(`Haciendo clic en botón: ${boton.text} (${boton.selector})`);
           try {
-            await Promise.all([
-              page.waitForNavigation({ waitUntil: 'networkidle', timeout: 5000 }),
-              page.click(boton.selector)
-            ]);
-          } catch (error) {
-            // No hubo navegación, esperar un cambio en la página
-            console.log('No hubo navegación después del clic, esperando...');
+            await page.click(boton.selector);
+            // Esperar a que la página cambie
             await page.waitForTimeout(3000);
+            
+            // Verificar si hubo navegación
+            const nuevaUrl = page.url();
+            console.log(`Nueva URL después del clic: ${nuevaUrl}`);
+            
+          } catch (error) {
+            console.log('Error al hacer clic:', error.message);
           }
           intentos++;
         } else {
           console.log('No se encontró ningún botón clickeable adecuado');
           // Tomar screenshot para debug
           await page.screenshot({ path: `debug-intento-${intentos}.png` });
-          console.log('Screenshot guardado como debug-intento-${intentos}.png');
-          throw new Error('No se encontró botón para continuar');
+          console.log(`Screenshot guardado como debug-intento-${intentos}.png`);
+          break;
         }
       } else {
         const botonFacturar = encontrarBotonAdecuado(botones, ['facturar', 'emitir', 'submit', 'enviar', 'generar']);
@@ -249,7 +270,7 @@ async function autofillFacturacion(data) {
           break;
         } else {
           console.log('No se encontró botón de facturación');
-          throw new Error('No se encontró botón para facturar');
+          break;
         }
       }
     }
