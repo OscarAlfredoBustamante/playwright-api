@@ -2,6 +2,8 @@ const express = require('express');
 const { llenarFormulario } = require('./scripts/llenarFormulario');
 const { detectarCampos } = require('./scripts/detectarCampos');
 const { entrenar } = require('./scripts/entrenar');
+const { autofillFacturacion } = require('./scripts/autofillFacturacion');
+
 const { ejecutarPlaywright } = require('./scripts/ejecutarPlaywright');
 const app = express();
 app.use(express.json());
@@ -27,6 +29,15 @@ app.post('/detectar', async (req, res) => {
 app.post('/entrenar', async (req, res) => {
     try {
         const result = await entrenar(req.body);
+        res.json({ success: true, result });
+    } catch (err) {
+        res.status(500).json({ success: false, error: err.message });
+    }
+});
+
+app.post('/autofillFacturacion', async (req, res) => {
+    try {
+        const result = await autofillFacturacion(req.body);
         res.json({ success: true, result });
     } catch (err) {
         res.status(500).json({ success: false, error: err.message });
