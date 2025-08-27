@@ -54,7 +54,7 @@ if (!fs.existsSync(screenshotsDir)) {
             }
 
             await page.screenshot({
-                path: path.join(screenshotsDir, `${i + 2}-${selector.replace(/[#.]/g, '')}.png`),
+                path: path.join(screenshotsDir, `${i + 2}.png`),
                 fullPage: true
             });
         }
