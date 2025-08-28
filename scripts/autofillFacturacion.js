@@ -296,7 +296,7 @@ async function autofillFacturacion(data) {
       obligatoriosRestantes = obligatoriosRestantes.filter(clave => !camposLlenados.includes(clave));
 
       if (obligatoriosRestantes.length > 0) {
-        const boton = encontrarBotonAdecuado(botones, ['agregar', 'siguiente', 'avanzar', 'buscar', 'facturar', 'enviar']);
+        const boton = encontrarBotonAdecuado(botones, ['generar','agregar', 'siguiente', 'avanzar', 'buscar', 'facturar', 'enviar']);
         if (boton) {
           console.log(`Intentando hacer clic en botón: ${boton.text} (${boton.selector})`);
 
