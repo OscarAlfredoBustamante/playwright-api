@@ -1,0 +1,21 @@
+# Dependencias
+node_modules/
+
+# Cualquier carpeta llamada "lib" en cualquier nivel
+**/lib/
+
+# Imágenes comunes
+*.png
+*.jpg
+*.jpeg
+*.gif
+*.svg
+*.webp
+
+# (Opcionales recomendados)
+.DS_Store
+Thumbs.db
+.env
+npm-debug.log*
+yarn-error.log*
+pnpm-debug.log*

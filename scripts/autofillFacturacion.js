@@ -214,14 +214,20 @@ async function hacerClicConfiable(page, boton) {
   console.log(`Selector: ${boton.selector}`);
   console.log(`Visible: ${boton.visible}`);
   // Intentar diferentes métodos de clic
-  const locator = page.getByRole('button', { name: boton.text });
 
-const metodosClic = [
-  () => locator.click(),
-  () => locator.dispatchEvent('click'),
-  () => locator.press('Enter'),
-  () => locator.press('Space')
-];
+  let locator;
+
+  if (boton.id) {
+    locator = page.locator(`#${boton.id}`);
+  } else if (boton.texto) {
+    locator = page.getByRole('button', { name: boton.texto });
+  }
+  const metodosClic = [
+    () => locator.click(),
+    () => locator.dispatchEvent('click'),
+    () => locator.press('Enter'),
+    () => locator.press('Space')
+  ];
 
   for (let i = 0; i < metodosClic.length; i++) {
     try {
@@ -290,7 +296,7 @@ async function autofillFacturacion(data) {
       obligatoriosRestantes = obligatoriosRestantes.filter(clave => !camposLlenados.includes(clave));
 
       if (obligatoriosRestantes.length > 0) {
-        const boton = encontrarBotonAdecuado(botones, ['agregar','siguiente', 'avanzar', 'buscar', 'facturar', 'enviar']);
+        const boton = encontrarBotonAdecuado(botones, ['agregar', 'siguiente', 'avanzar', 'buscar', 'facturar', 'enviar']);
         if (boton) {
           console.log(`Intentando hacer clic en botón: ${boton.text} (${boton.selector})`);
 
