@@ -13,6 +13,7 @@ const mapeoPredefinido = {
   ciudad: ['ciudad', 'city'],
   estado: ['estado', 'state'],
   pais: ['pais', 'country'],
+  clave: ['clave', 'key', 'codigo', 'password'] // Añadido para el campo "clave"
 };
 
 async function cerrarModales(page) {
@@ -37,7 +38,7 @@ async function detectarCamposEnPagina(page) {
     // Esperar a que cargue el contenido dinámico
     await page.waitForLoadState('networkidle');
     await page.waitForTimeout(3000);
-    
+
     // Tomar screenshot para ver el estado actual de la página
     await page.screenshot({ path: 'debug-page-state.png' });
     console.log('Screenshot tomado: debug-page-state.png');
@@ -50,11 +51,11 @@ async function detectarCamposEnPagina(page) {
         const style = window.getComputedStyle(el);
         const rect = el.getBoundingClientRect();
         return style.display !== 'none' &&
-               style.visibility !== 'hidden' &&
-               parseFloat(style.opacity) > 0.1 &&
-               rect.width > 0 &&
-               rect.height > 0 &&
-               el.offsetParent !== null;
+          style.visibility !== 'hidden' &&
+          parseFloat(style.opacity) > 0.1 &&
+          rect.width > 0 &&
+          rect.height > 0 &&
+          el.offsetParent !== null;
       };
 
       // Buscar todos los elementos de formulario visibles
@@ -63,7 +64,7 @@ async function detectarCamposEnPagina(page) {
         .map(el => {
           const rect = el.getBoundingClientRect();
           const style = window.getComputedStyle(el);
-          
+
           // Obtener texto del elemento
           let text = '';
           if (el.tagName.toLowerCase() === 'input') {
@@ -99,17 +100,17 @@ async function detectarCamposEnPagina(page) {
     });
 
     // Separar campos de botones
-    const campos = elementos.filter(el => 
-      ['input', 'textarea', 'select'].includes(el.tag) && 
-      el.type !== 'submit' && 
-      el.type !== 'button' && 
+    const campos = elementos.filter(el =>
+      ['input', 'textarea', 'select'].includes(el.tag) &&
+      el.type !== 'submit' &&
+      el.type !== 'button' &&
       el.type !== 'reset' &&
       el.type !== 'image'
     );
 
-    const botones = elementos.filter(el => 
-      el.tag === 'button' || 
-      el.tag === 'a' || 
+    const botones = elementos.filter(el =>
+      el.tag === 'button' ||
+      el.tag === 'a' ||
       ['submit', 'button', 'reset', 'image'].includes(el.type)
     );
 
@@ -165,7 +166,7 @@ async function llenarCampo(page, campo, valor) {
 function encontrarBotonAdecuado(botones, preferencias) {
   console.log('=== ANALIZANDO BOTONES ===');
   console.log(`Preferencias: ${preferencias.join(', ')}`);
-  
+
   // Mostrar TODOS los botones detectados
   console.log(`Total de botones detectados: ${botones.length}`);
   botones.forEach((boton, index) => {
@@ -174,7 +175,7 @@ function encontrarBotonAdecuado(botones, preferencias) {
 
   // Buscar por texto preferido
   for (const pref of preferencias) {
-    const boton = botones.find(b => 
+    const boton = botones.find(b =>
       b.text && b.text.toLowerCase().includes(pref.toLowerCase())
     );
     if (boton) {
@@ -182,22 +183,72 @@ function encontrarBotonAdecuado(botones, preferencias) {
       return boton;
     }
   }
-  
+
   // Si no encuentra, devolver el primer botón que no sea de imagen (pueden ser problemáticos)
   const botonesNoImagen = botones.filter(b => b.type !== 'image');
   if (botonesNoImagen.length > 0) {
     console.log(`Usando el primer botón no imagen: ${botonesNoImagen[0].text}`);
     return botonesNoImagen[0];
   }
-  
+
   // Si solo hay botones de imagen, usar el primero
   if (botones.length > 0) {
     console.log(`Usando el primer botón disponible: ${botones[0].text}`);
     return botones[0];
   }
-  
+
   console.log('No se encontró ningún botón');
   return null;
+}
+
+async function hacerClicConfiable(page, boton) {
+  console.log(`Intentando hacer clic en: ${boton.selector}`);
+
+  console.log('=== PROPIEDADES DEL BOTÓN ===');
+  console.log(`Tag: ${boton.tag}`);
+  console.log(`Type: ${boton.type}`);
+  console.log(`Text: "${boton.text}"`);
+  console.log(`ID: ${boton.id}`);
+  console.log(`Name: ${boton.name}`);
+  console.log(`Class: ${boton.class}`);
+  console.log(`Selector: ${boton.selector}`);
+  console.log(`Visible: ${boton.visible}`);
+  // Intentar diferentes métodos de clic
+  const locator = page.getByRole('button', { name: boton.text });
+
+const metodosClic = [
+  () => locator.click(),
+  () => locator.dispatchEvent('click'),
+  () => locator.press('Enter'),
+  () => locator.press('Space')
+];
+
+  for (let i = 0; i < metodosClic.length; i++) {
+    try {
+      console.log(`Probando método de clic ${i + 1}`);
+      await metodosClic[i]();
+      // Esperar a ver si hay cambios
+      await page.waitForTimeout(2000);
+
+      // Verificar si la URL cambió
+      const nuevaUrl = page.url();
+      console.log(`URL después del clic: ${nuevaUrl}`);
+
+      // Verificar si aparecieron nuevos elementos
+      const elementosDespuesClic = await page.$$('input, textarea, select, button, a');
+      console.log(`Elementos después del clic: ${elementosDespuesClic.length}`);
+
+      if (elementosDespuesClic.length > 0) {
+        console.log('El clic parece haber funcionado');
+        return true;
+      }
+    } catch (error) {
+      console.log(`Método ${i + 1} falló: ${error.message}`);
+    }
+  }
+
+  console.log('Ningún método de clic funcionó');
+  return false;
 }
 
 async function autofillFacturacion(data) {
@@ -205,7 +256,7 @@ async function autofillFacturacion(data) {
   const page = await browser.newPage();
   const url = data.url;
   const datos = data.datos;
-  
+
   try {
     await page.goto(url, { waitUntil: 'networkidle', timeout: 30000 });
 
@@ -216,11 +267,11 @@ async function autofillFacturacion(data) {
     while (obligatoriosRestantes.length > 0 && intentos < maxIntentos) {
       console.log(`\n=== INTENTO ${intentos + 1} ===`);
       console.log(`Campos obligatorios restantes: ${obligatoriosRestantes.join(', ')}`);
-      
+
       await cerrarModales(page);
 
       const { campos, botones } = await detectarCamposEnPagina(page);
-      
+
       console.log(`Campos detectados: ${campos.length}`);
       console.log(`Botones detectados: ${botones.length}`);
 
@@ -239,21 +290,27 @@ async function autofillFacturacion(data) {
       obligatoriosRestantes = obligatoriosRestantes.filter(clave => !camposLlenados.includes(clave));
 
       if (obligatoriosRestantes.length > 0) {
-        const boton = encontrarBotonAdecuado(botones, [ 'continuar', 'avanzar', 'buscar','facturar']);
+        const boton = encontrarBotonAdecuado(botones, ['agregar','siguiente', 'avanzar', 'buscar', 'facturar', 'enviar']);
         if (boton) {
-          console.log(`Haciendo clic en botón: ${boton.text} (${boton.selector})`);
-          try {
-            await page.click(boton.selector);
-            // Esperar a que la página cambie
-            await page.waitForTimeout(3000);
-            
+          console.log(`Intentando hacer clic en botón: ${boton.text} (${boton.selector})`);
+
+          const clicExitoso = await hacerClicConfiable(page, boton);
+
+          if (clicExitoso) {
+            console.log('Clic exitoso, esperando cambios en la página...');
+            // Esperar a que la página cargue nuevos elementos
+            await page.waitForTimeout(5000);
+
             // Verificar si hubo navegación
             const nuevaUrl = page.url();
             console.log(`Nueva URL después del clic: ${nuevaUrl}`);
-            
-          } catch (error) {
-            console.log('Error al hacer clic:', error.message);
+          } else {
+            console.log('El clic no produjo cambios visibles en la página');
+            // Tomar screenshot para debug
+            await page.screenshot({ path: `debug-intento-${intentos}.png` });
+            console.log(`Screenshot guardado como debug-intento-${intentos}.png`);
           }
+
           intentos++;
         } else {
           console.log('No se encontró ningún botón clickeable adecuado');
